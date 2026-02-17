@@ -16,7 +16,7 @@ QMainWindow {{
 
 QWidget {{
     color: {TEXT_PRIMARY};
-    font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+    font-family: "Helvetica Neue", "Segoe UI", sans-serif;
     font-size: 13px;
 }}
 
