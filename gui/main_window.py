@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from cvjutsu.data_collector import DataCollector
 from cvjutsu.hand_tracker import HandResult
 from gui.camera_widget import CameraThread, CameraWidget
 from gui.collection_panel import CollectionPanel
@@ -102,9 +103,16 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self._status_bar)
         self._status_bar.showMessage("FPS: -- | Model: not loaded | Hands: 0 detected")
 
+        # Data collector
+        self._data_collector = DataCollector()
+
         # Connect signals
         self._jutsu_menu.jutsu_selected.connect(self._on_jutsu_selected)
         self._control_panel.reset_clicked.connect(self._on_reset)
+        self._collection_panel.capture_requested.connect(self._on_capture)
+
+        # Initialize collection counts
+        self._collection_panel.update_counts(self._data_collector.get_counts())
 
         # Camera thread
         self._camera_thread = CameraThread()
@@ -164,6 +172,23 @@ class MainWindow(QMainWindow):
             f"FPS: {self._current_fps:.0f} | Model: {model_status} | "
             f"Hands: {self._num_hands} detected"
         )
+
+    @pyqtSlot(str)
+    def _on_capture(self, seal_label: str) -> None:
+        if self._last_result is None or self._last_result.num_hands == 0:
+            self._status_bar.showMessage("No hands detected — cannot capture")
+            return
+        ok = self._data_collector.save_sample(
+            seal_label,
+            self._last_result.landmarks,
+            self._last_result.handedness,
+        )
+        if ok:
+            counts = self._data_collector.get_counts()
+            self._collection_panel.update_counts(counts)
+            self._status_bar.showMessage(f"Captured sample for {seal_label}")
+        else:
+            self._status_bar.showMessage("Failed to capture sample")
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_Space and self._mode == "collect":
