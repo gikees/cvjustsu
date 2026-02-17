@@ -11,41 +11,14 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-# Jutsu data used before jutsu_db exists — will be replaced in Phase 5
-_JUTSU_INFO = [
-    {
-        "name": "Katon: Goukakyu",
-        "display": "Fireball",
-        "element": "Fire",
-        "seals": ["mi", "hitsuji", "tora"],
-    },
-    {
-        "name": "Kage Bunshin",
-        "display": "Shadow Clone",
-        "element": "None",
-        "seals": ["hitsuji"],
-    },
-    {
-        "name": "Chidori",
-        "display": "Chidori",
-        "element": "Lightning",
-        "seals": ["ushi", "tori", "hitsuji"],
-    },
-]
-
-SEAL_DISPLAY = {
-    "tora": "Tiger",
-    "mi": "Snake",
-    "hitsuji": "Ram",
-    "tori": "Bird",
-    "ushi": "Ox",
-}
+import config
+from cvjutsu.jutsu_db import JUTSU_LIST
 
 
 class JutsuMenu(QFrame):
     """Left panel showing available jutsu and selected jutsu info."""
 
-    jutsu_selected = pyqtSignal(dict)  # Emits the selected jutsu dict
+    jutsu_selected = pyqtSignal(dict)  # Emits dict with display/element/seals
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -60,8 +33,14 @@ class JutsuMenu(QFrame):
         layout.addWidget(title)
 
         self._list = QListWidget()
-        for info in _JUTSU_INFO:
-            item = QListWidgetItem(info["display"])
+        for jutsu in JUTSU_LIST:
+            info = {
+                "display": jutsu.display,
+                "element": jutsu.element,
+                "seals": jutsu.seals,
+                "name": jutsu.name,
+            }
+            item = QListWidgetItem(jutsu.display)
             item.setData(256, info)  # Qt.UserRole = 256
             self._list.addItem(item)
         self._list.currentItemChanged.connect(self._on_selection)
@@ -96,7 +75,7 @@ class JutsuMenu(QFrame):
         self._selected_jutsu = info
         self._jutsu_name.setText(info["display"])
         self._element_label.setText(f"Element: {info['element']}")
-        seal_names = [SEAL_DISPLAY.get(s, s) for s in info["seals"]]
+        seal_names = [config.SEAL_DISPLAY.get(s, s) for s in info["seals"]]
         self._seals_label.setText(f"Seals: {len(info['seals'])} ({' → '.join(seal_names)})")
         self.jutsu_selected.emit(info)
 
