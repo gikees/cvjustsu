@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 
 from cvjutsu.classifier import SealClassifier
 from cvjutsu.data_collector import DataCollector
+from cvjutsu.effects import EffectOverlay
 from cvjutsu.features import extract_features
 from cvjutsu.hand_tracker import HandResult
 from cvjutsu.sequence_tracker import SequenceTracker
@@ -112,6 +113,7 @@ class MainWindow(QMainWindow):
         self._data_collector = DataCollector()
         self._classifier = SealClassifier()
         self._sequence_tracker = SequenceTracker()
+        self._effect_overlay = EffectOverlay()
         self._selected_jutsu_seals: list[str] = []
 
         # Try to load saved model
@@ -163,7 +165,6 @@ class MainWindow(QMainWindow):
     def _on_frame(self, frame: np.ndarray, result: HandResult) -> None:
         self._num_hands = result.num_hands
         self._last_result = result
-        self._camera_widget.update_frame(frame)
 
         # Run recognition pipeline in recognize mode
         if self._mode == "recognize" and self._classifier.is_loaded and result.num_hands > 0:
@@ -178,6 +179,8 @@ class MainWindow(QMainWindow):
 
                 if tracker_state.jutsu_just_matched and tracker_state.matched_jutsu:
                     self._control_panel.set_jutsu(tracker_state.matched_jutsu.display)
+                    if tracker_state.matched_jutsu.effect_asset:
+                        self._effect_overlay.trigger(tracker_state.matched_jutsu.effect_asset)
 
                 # Update seal strip progress
                 if self._selected_jutsu_seals:
@@ -190,6 +193,10 @@ class MainWindow(QMainWindow):
             self._sequence_tracker.update(None, 0.0)
             self._control_panel.set_seal(None)
 
+        # Render effects overlay
+        frame = self._effect_overlay.render(frame)
+
+        self._camera_widget.update_frame(frame)
         self._update_status()
 
     def _count_matching_prefix(self, confirmed: list[str], target: list[str]) -> int:
