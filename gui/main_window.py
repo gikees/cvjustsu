@@ -6,6 +6,7 @@ import numpy as np
 from PyQt6.QtCore import pyqtSlot, Qt
 from PyQt6.QtWidgets import (
     QHBoxLayout,
+    QLabel,
     QMainWindow,
     QPushButton,
     QStatusBar,
@@ -13,8 +14,11 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from cvjutsu.classifier import SealClassifier
 from cvjutsu.data_collector import DataCollector
+from cvjutsu.features import extract_features
 from cvjutsu.hand_tracker import HandResult
+from cvjutsu.sequence_tracker import SequenceTracker
 from gui.camera_widget import CameraThread, CameraWidget
 from gui.collection_panel import CollectionPanel
 from gui.control_panel import ControlPanel
@@ -43,11 +47,12 @@ class MainWindow(QMainWindow):
 
         # Mode toolbar
         toolbar = QWidget()
-        toolbar.setStyleSheet("background-color: #16213e; padding: 4px 8px;")
+        toolbar.setStyleSheet("background-color: #333; padding: 4px 8px;")
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(8, 4, 8, 4)
 
-        mode_label = self._make_label("Mode:")
+        mode_label = QLabel("Mode:")
+        mode_label.setStyleSheet("font-weight: bold; margin-right: 6px;")
         toolbar_layout.addWidget(mode_label)
 
         self._collect_btn = QPushButton("Collect Data")
@@ -103,13 +108,21 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self._status_bar)
         self._status_bar.showMessage("FPS: -- | Model: not loaded | Hands: 0 detected")
 
-        # Data collector
+        # Core components
         self._data_collector = DataCollector()
+        self._classifier = SealClassifier()
+        self._sequence_tracker = SequenceTracker()
+        self._selected_jutsu_seals: list[str] = []
+
+        # Try to load saved model
+        if self._classifier.load():
+            self._status_bar.showMessage("Model loaded successfully")
 
         # Connect signals
         self._jutsu_menu.jutsu_selected.connect(self._on_jutsu_selected)
         self._control_panel.reset_clicked.connect(self._on_reset)
         self._collection_panel.capture_requested.connect(self._on_capture)
+        self._collection_panel.train_requested.connect(self._on_train)
 
         # Initialize collection counts
         self._collection_panel.update_counts(self._data_collector.get_counts())
@@ -126,12 +139,6 @@ class MainWindow(QMainWindow):
 
         self._camera_thread.start()
 
-    def _make_label(self, text: str):
-        from PyQt6.QtWidgets import QLabel
-        lbl = QLabel(text)
-        lbl.setStyleSheet("font-weight: bold; margin-right: 6px;")
-        return lbl
-
     def _set_mode(self, mode: str) -> None:
         self._mode = mode
         is_collect = mode == "collect"
@@ -142,6 +149,7 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(dict)
     def _on_jutsu_selected(self, jutsu: dict) -> None:
+        self._selected_jutsu_seals = jutsu["seals"]
         self._seal_strip.set_sequence(jutsu["seals"])
         self._seal_strip.reset()
 
@@ -149,13 +157,57 @@ class MainWindow(QMainWindow):
     def _on_reset(self) -> None:
         self._control_panel.reset_display()
         self._seal_strip.reset()
+        self._sequence_tracker.reset()
 
     @pyqtSlot(np.ndarray, object)
     def _on_frame(self, frame: np.ndarray, result: HandResult) -> None:
         self._num_hands = result.num_hands
         self._last_result = result
         self._camera_widget.update_frame(frame)
+
+        # Run recognition pipeline in recognize mode
+        if self._mode == "recognize" and self._classifier.is_loaded and result.num_hands > 0:
+            features = extract_features(result.landmarks, result.handedness)
+            if features is not None:
+                seal, confidence = self._classifier.predict(features)
+                tracker_state = self._sequence_tracker.update(seal, confidence)
+
+                # Update control panel
+                self._control_panel.set_seal(tracker_state.current_seal, tracker_state.current_confidence)
+                self._control_panel.set_sequence(tracker_state.confirmed_sequence)
+
+                if tracker_state.jutsu_just_matched and tracker_state.matched_jutsu:
+                    self._control_panel.set_jutsu(tracker_state.matched_jutsu.display)
+
+                # Update seal strip progress
+                if self._selected_jutsu_seals:
+                    completed = self._count_matching_prefix(
+                        tracker_state.confirmed_sequence,
+                        self._selected_jutsu_seals,
+                    )
+                    self._seal_strip.update_progress(completed)
+        elif self._mode == "recognize" and result.num_hands == 0:
+            self._sequence_tracker.update(None, 0.0)
+            self._control_panel.set_seal(None)
+
         self._update_status()
+
+    def _count_matching_prefix(self, confirmed: list[str], target: list[str]) -> int:
+        """Count how many seals from the end of confirmed match the target sequence prefix."""
+        if not confirmed or not target:
+            return 0
+        # Check suffix of confirmed against prefix of target
+        for start in range(len(confirmed)):
+            suffix = confirmed[start:]
+            match_len = 0
+            for i, seal in enumerate(suffix):
+                if i < len(target) and seal == target[i]:
+                    match_len = i + 1
+                else:
+                    break
+            if match_len > 0 and start + match_len == len(confirmed):
+                return match_len
+        return 0
 
     @pyqtSlot(float)
     def _on_fps(self, fps: float) -> None:
@@ -167,7 +219,7 @@ class MainWindow(QMainWindow):
         self._status_bar.showMessage(f"Error: {msg}")
 
     def _update_status(self) -> None:
-        model_status = "not loaded"
+        model_status = "loaded" if self._classifier.is_loaded else "not loaded"
         self._status_bar.showMessage(
             f"FPS: {self._current_fps:.0f} | Model: {model_status} | "
             f"Hands: {self._num_hands} detected"
@@ -189,6 +241,22 @@ class MainWindow(QMainWindow):
             self._status_bar.showMessage(f"Captured sample for {seal_label}")
         else:
             self._status_bar.showMessage("Failed to capture sample")
+
+    @pyqtSlot()
+    def _on_train(self) -> None:
+        """Train the model from collected data."""
+        df = self._data_collector.load_all()
+        if df is None or len(df) == 0:
+            self._status_bar.showMessage("No training data available")
+            return
+
+        feature_cols = [c for c in df.columns if c != "label"]
+        X = df[feature_cols].values.astype(np.float32)
+        y = df["label"].values
+
+        acc = self._classifier.train(X, y)
+        self._classifier.save()
+        self._status_bar.showMessage(f"Model trained — accuracy: {acc:.1%}")
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_Space and self._mode == "collect":
