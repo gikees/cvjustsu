@@ -1,8 +1,9 @@
-"""Bottom strip: seal sequence display with progress highlighting."""
+"""Bottom strip: seal sequence display with reference images and progress highlighting."""
 
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -15,28 +16,45 @@ import config
 
 
 class SealCard(QFrame):
-    """Single seal card in the sequence strip."""
+    """Single seal card in the sequence strip with reference image."""
 
     def __init__(self, seal_id: str, parent=None) -> None:
         super().__init__(parent)
         self.seal_id = seal_id
         self.setObjectName("sealCard")
-        self.setFixedSize(100, 80)
+        self.setFixedSize(120, 140)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(2)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         display = config.SEAL_DISPLAY.get(seal_id, seal_id)
 
-        self._icon_label = QLabel(f"[{display.upper()}]")
-        self._icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._icon_label.setStyleSheet("font-size: 16px; font-weight: bold;")
-        layout.addWidget(self._icon_label)
+        # Seal reference image
+        self._image_label = QLabel()
+        self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._image_label.setFixedSize(100, 100)
 
+        img_path = config.SEALS_DIR / f"{seal_id}.png"
+        if img_path.exists():
+            pixmap = QPixmap(str(img_path))
+            scaled = pixmap.scaled(
+                96, 96,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self._image_label.setPixmap(scaled)
+        else:
+            self._image_label.setText(f"[{display.upper()}]")
+            self._image_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+
+        layout.addWidget(self._image_label)
+
+        # Seal name below
         self._name_label = QLabel(display)
         self._name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._name_label.setStyleSheet("font-size: 11px; color: #aaa;")
+        self._name_label.setStyleSheet("font-size: 12px; color: #aaa;")
         layout.addWidget(self._name_label)
 
     def set_state(self, state: str) -> None:
@@ -57,7 +75,7 @@ class SealStrip(QFrame):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("panel")
-        self.setFixedHeight(120)
+        self.setFixedHeight(180)
 
         self._outer = QVBoxLayout(self)
         self._outer.setContentsMargins(8, 4, 8, 4)
@@ -79,7 +97,6 @@ class SealStrip(QFrame):
 
     def set_sequence(self, seals: list[str]) -> None:
         """Display a new seal sequence."""
-        # Clear existing
         self._clear()
 
         if not seals:
@@ -91,7 +108,7 @@ class SealStrip(QFrame):
         for i, seal_id in enumerate(seals):
             if i > 0:
                 arrow = QLabel("→")
-                arrow.setStyleSheet("font-size: 20px; color: #666; padding: 0 4px;")
+                arrow.setStyleSheet("font-size: 24px; color: #666; padding: 0 6px;")
                 arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._strip_layout.addWidget(arrow)
 
