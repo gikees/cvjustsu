@@ -22,7 +22,7 @@ class ControlPanel(QFrame):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("panel")
-        self.setFixedWidth(200)
+        self.setFixedWidth(220)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)

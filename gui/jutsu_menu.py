@@ -23,7 +23,7 @@ class JutsuMenu(QFrame):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("panel")
-        self.setFixedWidth(200)
+        self.setFixedWidth(220)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -55,6 +55,7 @@ class JutsuMenu(QFrame):
         layout.addWidget(self._info_title)
 
         self._jutsu_name = QLabel("(none)")
+        self._jutsu_name.setWordWrap(True)
         self._jutsu_name.setStyleSheet("font-size: 14px; font-weight: bold;")
         layout.addWidget(self._jutsu_name)
 
@@ -62,6 +63,7 @@ class JutsuMenu(QFrame):
         layout.addWidget(self._element_label)
 
         self._seals_label = QLabel("")
+        self._seals_label.setWordWrap(True)
         layout.addWidget(self._seals_label)
 
         layout.addStretch()
