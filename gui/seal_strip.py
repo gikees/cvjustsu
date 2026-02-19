@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -18,15 +19,18 @@ import config
 class SealCard(QFrame):
     """Single seal card in the sequence strip with reference image."""
 
-    def __init__(self, seal_id: str, parent=None) -> None:
+    def __init__(self, seal_id: str, img_size: int = 96, parent=None) -> None:
         super().__init__(parent)
         self.seal_id = seal_id
         self.setObjectName("sealCard")
-        self.setFixedSize(120, 140)
+
+        card_w = img_size + 24
+        card_h = img_size + 40
+        self.setFixedSize(card_w, card_h)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(2)
+        layout.setSpacing(4)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         display = config.SEAL_DISPLAY.get(seal_id, seal_id)
@@ -34,13 +38,13 @@ class SealCard(QFrame):
         # Seal reference image
         self._image_label = QLabel()
         self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._image_label.setFixedSize(100, 100)
+        self._image_label.setFixedSize(img_size, img_size)
 
-        img_path = config.SEALS_DIR / f"{seal_id}.png"
+        img_path = config.seal_image_path(seal_id)
         if img_path.exists():
             pixmap = QPixmap(str(img_path))
             scaled = pixmap.scaled(
-                96, 96,
+                img_size, img_size,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
@@ -70,12 +74,16 @@ class SealCard(QFrame):
 
 
 class SealStrip(QFrame):
-    """Horizontal strip showing the seal sequence for a selected jutsu."""
+    """Horizontal strip showing the seal sequence for a selected jutsu.
+
+    Card sizes adapt to the number of seals so fewer seals get bigger images.
+    """
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("panel")
-        self.setFixedHeight(180)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        self.setMinimumHeight(120)
 
         self._outer = QVBoxLayout(self)
         self._outer.setContentsMargins(8, 4, 8, 4)
@@ -87,16 +95,29 @@ class SealStrip(QFrame):
         self._strip_widget = QWidget()
         self._strip_layout = QHBoxLayout(self._strip_widget)
         self._strip_layout.setContentsMargins(0, 0, 0, 0)
-        self._strip_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self._outer.addWidget(self._strip_widget)
+        self._strip_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._outer.addWidget(self._strip_widget, stretch=1)
 
         self._cards: list[SealCard] = []
         self._placeholder = QLabel("Select a jutsu to see its seal sequence")
         self._placeholder.setStyleSheet("color: #666; font-style: italic;")
         self._strip_layout.addWidget(self._placeholder)
 
+    def _calc_img_size(self, num_seals: int) -> int:
+        """Calculate image size based on number of seals and available space."""
+        available_h = self.height() - 60  # title + margins
+        max_from_height = max(available_h - 40, 80)  # leave room for name label
+
+        # Also limit by width: cards + arrows must fit
+        available_w = self.width() - 30
+        arrow_space = max(0, num_seals - 1) * 40
+        card_w_budget = (available_w - arrow_space) / max(num_seals, 1)
+        max_from_width = max(int(card_w_budget) - 24, 80)
+
+        return min(max_from_height, max_from_width, 250)
+
     def set_sequence(self, seals: list[str]) -> None:
-        """Display a new seal sequence."""
+        """Display a new seal sequence with dynamically sized cards."""
         self._clear()
 
         if not seals:
@@ -105,6 +126,8 @@ class SealStrip(QFrame):
             self._strip_layout.addWidget(self._placeholder)
             return
 
+        img_size = self._calc_img_size(len(seals))
+
         for i, seal_id in enumerate(seals):
             if i > 0:
                 arrow = QLabel("→")
@@ -112,11 +135,9 @@ class SealStrip(QFrame):
                 arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._strip_layout.addWidget(arrow)
 
-            card = SealCard(seal_id)
+            card = SealCard(seal_id, img_size=img_size)
             self._cards.append(card)
             self._strip_layout.addWidget(card)
-
-        self._strip_layout.addStretch()
 
     def update_progress(self, completed: int) -> None:
         """Highlight completed seals and mark the next as active."""

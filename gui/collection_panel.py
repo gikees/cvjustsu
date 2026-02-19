@@ -1,8 +1,9 @@
-"""Right panel for data collection mode: seal selector, counts, capture."""
+"""Right panel for data collection mode: seal selector, reference image, counts, capture."""
 
 from __future__ import annotations
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -23,7 +24,7 @@ class CollectionPanel(QFrame):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("panel")
-        self.setFixedWidth(200)
+        self.setFixedWidth(220)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -39,10 +40,18 @@ class CollectionPanel(QFrame):
         for seal_id in config.SEAL_NAMES:
             display = config.SEAL_DISPLAY.get(seal_id, seal_id)
             self._seal_combo.addItem(display, seal_id)
+        self._seal_combo.currentIndexChanged.connect(self._on_seal_changed)
         layout.addWidget(self._seal_combo)
 
+        # Reference image for the selected seal
+        self._ref_image = QLabel()
+        self._ref_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._ref_image.setFixedSize(180, 150)
+        self._ref_image.setStyleSheet("margin: 8px 0;")
+        layout.addWidget(self._ref_image)
+
         sep = QLabel("─" * 20)
-        sep.setStyleSheet("color: #555; margin: 8px 0;")
+        sep.setStyleSheet("color: #555;")
         layout.addWidget(sep)
 
         counts_title = QLabel("Sample Counts:")
@@ -67,6 +76,29 @@ class CollectionPanel(QFrame):
         self._train_btn = QPushButton("Train Model")
         self._train_btn.clicked.connect(self.train_requested.emit)
         layout.addWidget(self._train_btn)
+
+        # Load initial reference image
+        self._update_ref_image()
+
+    def _on_seal_changed(self, _index: int) -> None:
+        self._update_ref_image()
+
+    def _update_ref_image(self) -> None:
+        seal_id = self._seal_combo.currentData()
+        if seal_id is None:
+            return
+        img_path = config.seal_image_path(seal_id)
+        if img_path.exists():
+            pixmap = QPixmap(str(img_path))
+            scaled = pixmap.scaled(
+                170, 140,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self._ref_image.setPixmap(scaled)
+        else:
+            display = config.SEAL_DISPLAY.get(seal_id, seal_id)
+            self._ref_image.setText(f"[{display}]")
 
     def _on_capture(self) -> None:
         seal_id = self._seal_combo.currentData()

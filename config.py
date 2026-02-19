@@ -41,3 +41,12 @@ SEAL_DISPLAY = {
     "tori": "Bird",
     "ushi": "Ox",
 }
+
+
+def seal_image_path(seal_id: str) -> Path:
+    """Return the best available image path for a seal (new JPEG, then old PNG)."""
+    english = SEAL_DISPLAY.get(seal_id, seal_id).lower()
+    jpeg = SEALS_DIR / f"{english}_{seal_id}.jpeg"
+    if jpeg.exists():
+        return jpeg
+    return SEALS_DIR / f"{seal_id}.png"
