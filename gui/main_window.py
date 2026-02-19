@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QStatusBar,
     QVBoxLayout,
@@ -68,6 +69,12 @@ class MainWindow(QMainWindow):
         toolbar_layout.addWidget(self._recognize_btn)
 
         toolbar_layout.addStretch()
+
+        help_btn = QPushButton("Help")
+        help_btn.setCheckable(False)
+        help_btn.clicked.connect(self._show_help)
+        toolbar_layout.addWidget(help_btn)
+
         root_layout.addWidget(toolbar)
 
         # Main content area: left | center | right
@@ -148,6 +155,33 @@ class MainWindow(QMainWindow):
         self._recognize_btn.setChecked(not is_collect)
         self._collection_panel.setVisible(is_collect)
         self._control_panel.setVisible(not is_collect)
+
+    def _show_help(self) -> None:
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle("How CVJutsu Works")
+        dlg.setTextFormat(Qt.TextFormat.RichText)
+        dlg.setText(
+            "<h3>CVJutsu — Naruto Hand Seal Recognition</h3>"
+            "<p>This app uses your webcam to detect Naruto-style hand seals "
+            "in real time and match them to jutsu sequences.</p>"
+        )
+        dlg.setInformativeText(
+            "<b>Recognize Mode</b><br>"
+            "1. Select a jutsu from the left panel.<br>"
+            "2. Perform the hand seals shown in the bottom strip.<br>"
+            "3. Hold each seal steady until it is confirmed.<br>"
+            "4. Complete the full sequence to trigger the jutsu!<br><br>"
+            "<b>Collect Data Mode</b><br>"
+            "1. Switch to <i>Collect Data</i> in the toolbar.<br>"
+            "2. Pick a seal from the dropdown and match the reference image.<br>"
+            "3. Press <b>Space</b> or click <b>Capture</b> to save a sample.<br>"
+            "4. After collecting samples, click <b>Train</b> to build the model.<br><br>"
+            "<b>Keyboard Shortcuts</b><br>"
+            "<b>Space</b> — Capture sample (Collect mode)<br>"
+            "<b>R</b> — Reset current sequence"
+        )
+        dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        dlg.exec()
 
     @pyqtSlot(dict)
     def _on_jutsu_selected(self, jutsu: dict) -> None:
