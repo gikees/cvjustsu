@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -73,6 +73,16 @@ class CollectionPanel(QFrame):
         self._capture_btn.clicked.connect(self._on_capture)
         layout.addWidget(self._capture_btn)
 
+        self._auto_btn = QPushButton("AUTO-CAPTURE: OFF")
+        self._auto_btn.setCheckable(True)
+        self._auto_btn.setStyleSheet("font-size: 14px; padding: 10px;")
+        self._auto_btn.clicked.connect(self._toggle_auto_capture)
+        layout.addWidget(self._auto_btn)
+
+        self._auto_timer = QTimer(self)
+        self._auto_timer.setInterval(1000)
+        self._auto_timer.timeout.connect(self._on_capture)
+
         self._train_btn = QPushButton("Train Model")
         self._train_btn.clicked.connect(self.train_requested.emit)
         layout.addWidget(self._train_btn)
@@ -103,6 +113,14 @@ class CollectionPanel(QFrame):
     def _on_capture(self) -> None:
         seal_id = self._seal_combo.currentData()
         self.capture_requested.emit(seal_id)
+
+    def _toggle_auto_capture(self, checked: bool) -> None:
+        if checked:
+            self._auto_btn.setText("AUTO-CAPTURE: ON")
+            self._auto_timer.start()
+        else:
+            self._auto_btn.setText("AUTO-CAPTURE: OFF")
+            self._auto_timer.stop()
 
     def update_counts(self, counts: dict[str, int]) -> None:
         for seal_id, count in counts.items():
