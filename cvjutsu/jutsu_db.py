@@ -36,6 +36,34 @@ JUTSU_LIST: list[Jutsu] = [
         seals=["ushi", "tori", "hitsuji"],
         effect_asset="chidori.png",
     ),
+    Jutsu(
+        name="suiton_suiryudan",
+        display="Suiton: Suiryudan (Water Dragon)",
+        element="Water",
+        seals=["ushi", "mi", "tatsu", "u", "tori"],
+        effect_asset="water_dragon.png",
+    ),
+    Jutsu(
+        name="kuchiyose",
+        display="Kuchiyose (Summoning)",
+        element="None",
+        seals=["i", "inu", "tori", "saru", "hitsuji"],
+        effect_asset="summoning.png",
+    ),
+    Jutsu(
+        name="doton_doryuheki",
+        display="Doton: Doryuheki (Earth Wall)",
+        element="Earth",
+        seals=["mi", "tora", "inu", "ushi"],
+        effect_asset="earth_wall.png",
+    ),
+    Jutsu(
+        name="katon_housenka",
+        display="Katon: Housenka (Phoenix Flower)",
+        element="Fire",
+        seals=["mi", "tora"],
+        effect_asset="phoenix_flower.png",
+    ),
 ]
 
 # Index by name for quick lookup
