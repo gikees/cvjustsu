@@ -9,7 +9,9 @@ from PyQt6.QtWidgets import (
     QFrame,
     QLabel,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
+    QWidget,
 )
 
 import config
@@ -58,15 +60,24 @@ class CollectionPanel(QFrame):
         counts_title.setStyleSheet("font-weight: bold; margin-bottom: 4px;")
         layout.addWidget(counts_title)
 
+        counts_container = QWidget()
+        counts_layout = QVBoxLayout(counts_container)
+        counts_layout.setContentsMargins(0, 0, 0, 0)
+        counts_layout.setSpacing(2)
         self._count_labels: dict[str, QLabel] = {}
         for seal_id in config.SEAL_NAMES:
             display = config.SEAL_DISPLAY.get(seal_id, seal_id)
             label = QLabel(f"{display}:  0")
             label.setStyleSheet("font-family: monospace;")
             self._count_labels[seal_id] = label
-            layout.addWidget(label)
+            counts_layout.addWidget(label)
 
-        layout.addStretch()
+        scroll = QScrollArea()
+        scroll.setWidget(counts_container)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background: transparent;")
+        layout.addWidget(scroll, stretch=1)
 
         self._capture_btn = QPushButton("CAPTURE (Space)")
         self._capture_btn.setStyleSheet("font-size: 14px; padding: 10px;")
