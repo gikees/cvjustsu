@@ -32,14 +32,24 @@ SEAL_HOLD_FRAMES = 5        # Frames a seal must be stable to confirm
 SEQUENCE_TIMEOUT_SEC = 5.0  # Reset sequence after this idle time
 SINGLE_SEAL_DELAY_SEC = 1.5 # Delay before triggering single-seal jutsu
 
-# Hand seals
-SEAL_NAMES = ["tora", "mi", "hitsuji", "tori", "ushi"]
+# Hand seals (traditional zodiac order)
+SEAL_NAMES = [
+    "ne", "ushi", "tora", "u", "tatsu", "mi",
+    "uma", "hitsuji", "saru", "tori", "inu", "i",
+]
 SEAL_DISPLAY = {
-    "tora": "Tiger",
-    "mi": "Snake",
-    "hitsuji": "Ram",
-    "tori": "Bird",
+    "ne": "Rat",
     "ushi": "Ox",
+    "tora": "Tiger",
+    "u": "Hare",
+    "tatsu": "Dragon",
+    "mi": "Snake",
+    "uma": "Horse",
+    "hitsuji": "Ram",
+    "saru": "Monkey",
+    "tori": "Bird",
+    "inu": "Dog",
+    "i": "Boar",
 }
 
 
