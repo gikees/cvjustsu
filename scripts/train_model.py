@@ -40,7 +40,7 @@ def main() -> None:
 
     # Train on full data
     print("\nTraining on full dataset...")
-    train_acc = classifier.train(X, y)
+    train_acc = classifier.train(X, y, augment=True)
     print(f"Training accuracy: {train_acc:.3f}")
 
     # Save

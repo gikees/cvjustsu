@@ -26,17 +26,35 @@ class SealClassifier:
     def classes(self) -> list[str]:
         return self._classes
 
-    def train(self, X: np.ndarray, y: np.ndarray, n_estimators: int = config.RF_N_ESTIMATORS) -> float:
+    def train(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        n_estimators: int = config.RF_N_ESTIMATORS,
+        augment: bool = False,
+    ) -> float:
         """Train the classifier and return training accuracy.
 
         Args:
             X: Feature matrix (n_samples, n_features).
             y: Label array (n_samples,).
             n_estimators: Number of trees.
+            augment: If True, add Gaussian noise copies (3x) for data augmentation.
 
         Returns:
             Training accuracy score.
         """
+        if augment:
+            rng = np.random.default_rng(42)
+            aug_copies = []
+            aug_labels = []
+            for _ in range(3):
+                noise = rng.normal(0.0, 0.05, size=X.shape).astype(X.dtype)
+                aug_copies.append(X + noise)
+                aug_labels.append(y)
+            X = np.concatenate([X] + aug_copies)
+            y = np.concatenate([y] + aug_labels)
+
         self._model = RandomForestClassifier(
             n_estimators=n_estimators,
             random_state=42,
