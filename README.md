@@ -4,21 +4,28 @@ Real-time desktop app that uses a webcam to detect Naruto hand seals via MediaPi
 
 ## Supported Seals
 
-| Seal | Japanese | Hand Position |
-|------|----------|---------------|
-| Tiger | Tora | Index and middle fingers extended, interlocked |
-| Snake | Mi | Hands clasped, fingers interlocked |
-| Ram | Hitsuji | Fingers interlocked, index and middle of one hand up |
-| Bird | Tori | Fingers interlocked, thumbs linked, pinkies extended |
-| Ox | Ushi | Left hand horizontal, right hand vertical on top |
+All 12 zodiac seals from the Naruto universe:
+
+| Seal | Japanese | Seal | Japanese |
+|------|----------|------|----------|
+| Rat | Ne | Horse | Uma |
+| Ox | Ushi | Ram | Hitsuji |
+| Tiger | Tora | Monkey | Saru |
+| Hare | U | Bird | Tori |
+| Dragon | Tatsu | Dog | Inu |
+| Snake | Mi | Boar | I |
 
 ## Supported Jutsu
 
 | Jutsu | Sequence | Element |
 |-------|----------|---------|
 | Katon: Goukakyu (Fireball) | Snake → Ram → Tiger | Fire |
-| Kage Bunshin (Shadow Clone) | Ram | — |
+| Katon: Housenka (Phoenix Flower) | Snake → Tiger | Fire |
 | Chidori | Ox → Bird → Ram | Lightning |
+| Suiton: Suiryudan (Water Dragon) | Ox → Snake → Dragon → Hare → Bird | Water |
+| Doton: Doryuheki (Earth Wall) | Snake → Tiger → Dog → Ox | Earth |
+| Kuchiyose (Summoning) | Boar → Dog → Bird → Monkey → Ram | — |
+| Kage Bunshin (Shadow Clone) | Ram | — |
 
 ## Setup
 
@@ -62,7 +69,7 @@ python scripts/train_model.py
 ### Recognize seals
 
 1. Switch to **Recognize** mode
-2. Select a jutsu from the left menu to see its required seal sequence
+2. Select a jutsu from the toolbar dropdown to see its required seal sequence
 3. Perform the seals — the strip highlights your progress
 4. Complete a sequence to trigger the jutsu effect
 
