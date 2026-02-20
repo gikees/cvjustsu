@@ -82,3 +82,34 @@ class TestSequenceTracker:
         state = self._feed_seal("hitsuji")
         # Should NOT immediately match (delay required)
         assert not state.jutsu_just_matched
+
+    def test_water_dragon_match(self):
+        """Ushi → Mi → Tatsu → U → Tori should match Water Dragon."""
+        for seal in ["ushi", "mi", "tatsu", "u", "tori"]:
+            self._feed_seal(seal)
+            for _ in range(3):
+                self.tracker.update(None, 0.0)
+
+        state = self._feed_seal("tori")
+        assert state.matched_jutsu is not None
+        assert state.matched_jutsu.name == "suiton_suiryudan"
+
+    def test_phoenix_flower_match(self):
+        """Mi → Tora should match Phoenix Flower."""
+        self._feed_seal("mi")
+        for _ in range(3):
+            self.tracker.update(None, 0.0)
+        state = self._feed_seal("tora")
+        assert state.matched_jutsu is not None
+        assert state.matched_jutsu.name == "katon_housenka"
+
+    def test_fireball_not_phoenix(self):
+        """Mi → Hitsuji → Tora should match Fireball, not Phoenix Flower (longest match)."""
+        for seal in ["mi", "hitsuji", "tora"]:
+            self._feed_seal(seal)
+            for _ in range(3):
+                self.tracker.update(None, 0.0)
+
+        state = self._feed_seal("tora")
+        assert state.matched_jutsu is not None
+        assert state.matched_jutsu.name == "katon_goukakyu"
