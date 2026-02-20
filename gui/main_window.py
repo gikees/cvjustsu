@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import time
+
+import cv2
 import numpy as np
 from PyQt6.QtCore import pyqtSlot, Qt
 from PyQt6.QtWidgets import (
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -15,27 +19,27 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+import config
 from cvjutsu.classifier import SealClassifier
 from cvjutsu.data_collector import DataCollector
 from cvjutsu.effects import EffectOverlay
 from cvjutsu.features import extract_features
 from cvjutsu.hand_tracker import HandResult
+from cvjutsu.jutsu_db import JUTSU_LIST
 from cvjutsu.sequence_tracker import SequenceTracker
 from gui.camera_widget import CameraThread, CameraWidget
 from gui.collection_panel import CollectionPanel
-from gui.control_panel import ControlPanel
-from gui.jutsu_menu import JutsuMenu
 from gui.seal_strip import SealStrip
 from gui.styles import APP_STYLE
 
 
 class MainWindow(QMainWindow):
-    """Top-level window with all panels, mode toggle, and camera feed."""
+    """Top-level window with toolbar, camera feed, and seal strip."""
 
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("CVJutsu - Naruto Hand Seal Recognition")
-        self.setMinimumSize(1080, 700)
+        self.setMinimumSize(900, 700)
         self.setStyleSheet(APP_STYLE)
 
         self._mode = "recognize"  # or "collect"
@@ -47,7 +51,7 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # Mode toolbar
+        # --- Toolbar ---
         toolbar = QWidget()
         toolbar.setStyleSheet("background-color: #333; padding: 4px 8px;")
         toolbar_layout = QHBoxLayout(toolbar)
@@ -68,7 +72,34 @@ class MainWindow(QMainWindow):
         self._recognize_btn.clicked.connect(lambda: self._set_mode("recognize"))
         toolbar_layout.addWidget(self._recognize_btn)
 
+        # Jutsu selector dropdown
+        sep = QLabel("|")
+        sep.setStyleSheet("color: #666; margin: 0 8px;")
+        toolbar_layout.addWidget(sep)
+
+        jutsu_label = QLabel("Jutsu:")
+        jutsu_label.setStyleSheet("font-weight: bold; margin-right: 4px;")
+        toolbar_layout.addWidget(jutsu_label)
+
+        self._jutsu_combo = QComboBox()
+        self._jutsu_combo.setMinimumWidth(220)
+        self._jutsu_combo.addItem("— Select Jutsu —", None)
+        for jutsu in JUTSU_LIST:
+            info = {
+                "display": jutsu.display,
+                "element": jutsu.element,
+                "seals": jutsu.seals,
+                "name": jutsu.name,
+            }
+            self._jutsu_combo.addItem(jutsu.display, info)
+        self._jutsu_combo.currentIndexChanged.connect(self._on_jutsu_combo_changed)
+        toolbar_layout.addWidget(self._jutsu_combo)
+
         toolbar_layout.addStretch()
+
+        self._reset_btn = QPushButton("Reset")
+        self._reset_btn.clicked.connect(self._on_reset)
+        toolbar_layout.addWidget(self._reset_btn)
 
         help_btn = QPushButton("Help")
         help_btn.setCheckable(False)
@@ -77,21 +108,17 @@ class MainWindow(QMainWindow):
 
         root_layout.addWidget(toolbar)
 
-        # Main content area: left | center | right
+        # --- Main content area ---
         content = QWidget()
-        content_layout = QHBoxLayout(content)
-        content_layout.setContentsMargins(6, 6, 6, 6)
-        content_layout.setSpacing(6)
-
-        # Left panel — jutsu menu
-        self._jutsu_menu = JutsuMenu()
-        content_layout.addWidget(self._jutsu_menu)
+        self._content_layout = QHBoxLayout(content)
+        self._content_layout.setContentsMargins(0, 0, 0, 0)
+        self._content_layout.setSpacing(0)
 
         # Center — camera + seal strip
         center = QWidget()
         center_layout = QVBoxLayout(center)
         center_layout.setContentsMargins(0, 0, 0, 0)
-        center_layout.setSpacing(6)
+        center_layout.setSpacing(0)
 
         self._camera_widget = CameraWidget()
         center_layout.addWidget(self._camera_widget, stretch=1)
@@ -99,15 +126,12 @@ class MainWindow(QMainWindow):
         self._seal_strip = SealStrip()
         center_layout.addWidget(self._seal_strip)
 
-        content_layout.addWidget(center, stretch=1)
+        self._content_layout.addWidget(center, stretch=1)
 
-        # Right panel — recognition or collection
-        self._control_panel = ControlPanel()
+        # Right panel — collection (only visible in collect mode)
         self._collection_panel = CollectionPanel()
         self._collection_panel.hide()
-
-        content_layout.addWidget(self._control_panel)
-        content_layout.addWidget(self._collection_panel)
+        self._content_layout.addWidget(self._collection_panel)
 
         root_layout.addWidget(content, stretch=1)
 
@@ -123,13 +147,20 @@ class MainWindow(QMainWindow):
         self._effect_overlay = EffectOverlay()
         self._selected_jutsu_seals: list[str] = []
 
+        # Overlay state for drawing on video
+        self._overlay_seal: str | None = None
+        self._overlay_confidence: float = 0.0
+        self._overlay_jutsu: str | None = None
+        self._overlay_jutsu_element: str | None = None
+        self._overlay_jutsu_time: float = 0.0
+        self._overlay_sequence: list[str] = []
+        self._confirm_flash_frames: int = 0
+
         # Try to load saved model
         if self._classifier.load():
             self._status_bar.showMessage("Model loaded successfully")
 
         # Connect signals
-        self._jutsu_menu.jutsu_selected.connect(self._on_jutsu_selected)
-        self._control_panel.reset_clicked.connect(self._on_reset)
         self._collection_panel.capture_requested.connect(self._on_capture)
         self._collection_panel.train_requested.connect(self._on_train)
 
@@ -154,7 +185,16 @@ class MainWindow(QMainWindow):
         self._collect_btn.setChecked(is_collect)
         self._recognize_btn.setChecked(not is_collect)
         self._collection_panel.setVisible(is_collect)
-        self._control_panel.setVisible(not is_collect)
+
+    def _on_jutsu_combo_changed(self, index: int) -> None:
+        info = self._jutsu_combo.itemData(index)
+        if info is None:
+            self._selected_jutsu_seals = []
+            self._seal_strip.set_sequence([])
+            return
+        self._selected_jutsu_seals = info["seals"]
+        self._seal_strip.set_sequence(info["seals"])
+        self._seal_strip.reset()
 
     def _show_help(self) -> None:
         dlg = QMessageBox(self)
@@ -167,7 +207,7 @@ class MainWindow(QMainWindow):
         )
         dlg.setInformativeText(
             "<b>Recognize Mode</b><br>"
-            "1. Select a jutsu from the left panel.<br>"
+            "1. Select a jutsu from the toolbar dropdown.<br>"
             "2. Perform the hand seals shown in the bottom strip.<br>"
             "3. Hold each seal steady until it is confirmed.<br>"
             "4. Complete the full sequence to trigger the jutsu!<br><br>"
@@ -183,15 +223,15 @@ class MainWindow(QMainWindow):
         dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
         dlg.exec()
 
-    @pyqtSlot(dict)
-    def _on_jutsu_selected(self, jutsu: dict) -> None:
-        self._selected_jutsu_seals = jutsu["seals"]
-        self._seal_strip.set_sequence(jutsu["seals"])
-        self._seal_strip.reset()
-
     @pyqtSlot()
     def _on_reset(self) -> None:
-        self._control_panel.reset_display()
+        self._overlay_seal = None
+        self._overlay_confidence = 0.0
+        self._overlay_jutsu = None
+        self._overlay_jutsu_element = None
+        self._overlay_jutsu_time = 0.0
+        self._overlay_sequence = []
+        self._confirm_flash_frames = 0
         self._seal_strip.reset()
         self._sequence_tracker.reset()
 
@@ -207,12 +247,17 @@ class MainWindow(QMainWindow):
                 seal, confidence = self._classifier.predict(features)
                 tracker_state = self._sequence_tracker.update(seal, confidence)
 
-                # Update control panel
-                self._control_panel.set_seal(tracker_state.current_seal, tracker_state.current_confidence)
-                self._control_panel.set_sequence(tracker_state.confirmed_sequence)
+                self._overlay_seal = tracker_state.current_seal
+                self._overlay_confidence = tracker_state.current_confidence
+                self._overlay_sequence = tracker_state.confirmed_sequence
+
+                if tracker_state.seal_just_confirmed:
+                    self._confirm_flash_frames = 4
 
                 if tracker_state.jutsu_just_matched and tracker_state.matched_jutsu:
-                    self._control_panel.set_jutsu(tracker_state.matched_jutsu.display)
+                    self._overlay_jutsu = tracker_state.matched_jutsu.display
+                    self._overlay_jutsu_element = tracker_state.matched_jutsu.element
+                    self._overlay_jutsu_time = time.time()
                     if tracker_state.matched_jutsu.effect_asset:
                         self._effect_overlay.trigger(tracker_state.matched_jutsu.effect_asset)
 
@@ -224,8 +269,14 @@ class MainWindow(QMainWindow):
                     )
                     self._seal_strip.update_progress(completed)
         elif self._mode == "recognize" and result.num_hands == 0:
-            self._sequence_tracker.update(None, 0.0)
-            self._control_panel.set_seal(None)
+            state = self._sequence_tracker.update(None, 0.0)
+            self._overlay_seal = None
+            self._overlay_confidence = 0.0
+            self._overlay_sequence = state.confirmed_sequence
+
+        # Draw recognition overlay on video
+        if self._mode == "recognize":
+            frame = self._draw_overlay(frame)
 
         # Render effects overlay
         frame = self._effect_overlay.render(frame)
@@ -233,11 +284,95 @@ class MainWindow(QMainWindow):
         self._camera_widget.update_frame(frame)
         self._update_status()
 
+    def _draw_overlay(self, frame: np.ndarray) -> np.ndarray:
+        """Draw recognition overlay: sequence chain, seal info, flash, and jutsu banner."""
+        h, w = frame.shape[:2]
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+        # --- Confirmation flash (green border) ---
+        if self._confirm_flash_frames > 0:
+            cv2.rectangle(frame, (0, 0), (w - 1, h - 1), (0, 255, 0), 4)
+            self._confirm_flash_frames -= 1
+
+        # --- Sequence chain at upper-left ---
+        if self._overlay_sequence:
+            parts = []
+            for seal in self._overlay_sequence:
+                display = config.SEAL_DISPLAY.get(seal, seal)
+                parts.append(display)
+            # Append "?" for the next expected seal if a jutsu is selected
+            if self._selected_jutsu_seals:
+                idx = len(self._overlay_sequence)
+                if idx < len(self._selected_jutsu_seals):
+                    next_seal = self._selected_jutsu_seals[idx]
+                    next_display = config.SEAL_DISPLAY.get(next_seal, next_seal)
+                    parts.append(f"{next_display}?")
+            chain_text = " \u2192 ".join(parts)
+            font_scale = 0.6
+            thickness = 1
+            (tw, th), _ = cv2.getTextSize(chain_text, font, font_scale, thickness)
+            # Semi-transparent background bar
+            overlay = frame.copy()
+            cv2.rectangle(overlay, (0, 0), (tw + 20, th + 16), (0, 0, 0), -1)
+            cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
+            cv2.putText(frame, chain_text, (10, th + 8), font, font_scale,
+                        (255, 255, 255), thickness, cv2.LINE_AA)
+
+        # --- Current seal + confidence at upper-right ---
+        if self._overlay_seal:
+            display = config.SEAL_DISPLAY.get(self._overlay_seal, self._overlay_seal)
+            text = f"{display.upper()} {int(self._overlay_confidence * 100)}%"
+            font_scale = 0.9
+            thickness = 2
+            (tw, th), _ = cv2.getTextSize(text, font, font_scale, thickness)
+            x = w - tw - 12
+            y = 32
+            cv2.putText(frame, text, (x + 1, y + 1), font, font_scale,
+                        (0, 0, 0), thickness + 2, cv2.LINE_AA)
+            cv2.putText(frame, text, (x, y), font, font_scale,
+                        (100, 255, 100), thickness, cv2.LINE_AA)
+
+        # --- Jutsu match banner (auto-clears after effect duration) ---
+        if self._overlay_jutsu:
+            elapsed = time.time() - self._overlay_jutsu_time
+            if elapsed > EffectOverlay.EFFECT_DURATION:
+                self._overlay_jutsu = None
+                self._overlay_jutsu_element = None
+            else:
+                banner_h = 60
+                banner_y = h - banner_h
+                overlay = frame.copy()
+                cv2.rectangle(overlay, (0, banner_y), (w, h), (0, 0, 0), -1)
+                cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+
+                color = self._jutsu_element_color(self._overlay_jutsu_element)
+                font_scale = 1.0
+                thickness = 2
+                (tw, th), _ = cv2.getTextSize(self._overlay_jutsu, font, font_scale, thickness)
+                tx = (w - tw) // 2
+                ty = banner_y + (banner_h + th) // 2
+                cv2.putText(frame, self._overlay_jutsu, (tx + 1, ty + 1), font,
+                            font_scale, (0, 0, 0), thickness + 2, cv2.LINE_AA)
+                cv2.putText(frame, self._overlay_jutsu, (tx, ty), font,
+                            font_scale, color, thickness, cv2.LINE_AA)
+
+        return frame
+
+    @staticmethod
+    def _jutsu_element_color(element: str | None) -> tuple[int, int, int]:
+        """Map jutsu element to BGR color for overlay text."""
+        colors = {
+            "Fire": (74, 88, 255),       # orange-red
+            "Water": (255, 180, 60),     # blue
+            "Lightning": (255, 255, 100), # light blue
+            "Earth": (60, 160, 220),     # brown-gold
+        }
+        return colors.get(element or "", (255, 255, 255))
+
     def _count_matching_prefix(self, confirmed: list[str], target: list[str]) -> int:
         """Count how many seals from the end of confirmed match the target sequence prefix."""
         if not confirmed or not target:
             return 0
-        # Check suffix of confirmed against prefix of target
         for start in range(len(confirmed)):
             suffix = confirmed[start:]
             match_len = 0
@@ -295,9 +430,13 @@ class MainWindow(QMainWindow):
         X = df[feature_cols].values.astype(np.float32)
         y = df["label"].values
 
-        acc = self._classifier.train(X, y)
+        acc = self._classifier.train(X, y, augment=True)
         self._classifier.save()
-        self._status_bar.showMessage(f"Model trained — accuracy: {acc:.1%}")
+        classes = self._classifier.classes
+        self._status_bar.showMessage(
+            f"Model trained — accuracy: {acc:.1%} | "
+            f"{len(classes)} classes: {', '.join(sorted(classes))}"
+        )
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_Space and self._mode == "collect":
