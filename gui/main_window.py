@@ -302,12 +302,14 @@ class MainWindow(QMainWindow):
                 parts.append(display)
             # Append "?" for the next expected seal if a jutsu is selected
             if self._selected_jutsu_seals:
-                idx = len(self._overlay_sequence)
-                if idx < len(self._selected_jutsu_seals):
-                    next_seal = self._selected_jutsu_seals[idx]
+                matched = self._count_matching_prefix(
+                    self._overlay_sequence, self._selected_jutsu_seals,
+                )
+                if matched < len(self._selected_jutsu_seals):
+                    next_seal = self._selected_jutsu_seals[matched]
                     next_display = config.SEAL_DISPLAY.get(next_seal, next_seal)
                     parts.append(f"{next_display}?")
-            chain_text = " \u2192 ".join(parts)
+            chain_text = " -> ".join(parts)
             font_scale = 0.6
             thickness = 1
             (tw, th), _ = cv2.getTextSize(chain_text, font, font_scale, thickness)
