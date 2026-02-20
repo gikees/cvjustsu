@@ -296,19 +296,21 @@ class MainWindow(QMainWindow):
 
         # --- Sequence chain at upper-left ---
         if self._overlay_sequence:
-            parts = []
-            for seal in self._overlay_sequence:
-                display = config.SEAL_DISPLAY.get(seal, seal)
-                parts.append(display)
-            # Append "?" for the next expected seal if a jutsu is selected
-            if self._selected_jutsu_seals:
-                matched = self._count_matching_prefix(
-                    self._overlay_sequence, self._selected_jutsu_seals,
-                )
-                if matched < len(self._selected_jutsu_seals):
-                    next_seal = self._selected_jutsu_seals[matched]
-                    next_display = config.SEAL_DISPLAY.get(next_seal, next_seal)
-                    parts.append(f"{next_display}?")
+            matched = self._count_matching_prefix(
+                self._overlay_sequence, self._selected_jutsu_seals,
+            ) if self._selected_jutsu_seals else 0
+
+            # When a jutsu is selected, show only the matched suffix
+            if self._selected_jutsu_seals and matched > 0:
+                display_seals = self._overlay_sequence[-matched:]
+            else:
+                display_seals = self._overlay_sequence[-5:]
+
+            parts = [config.SEAL_DISPLAY.get(s, s) for s in display_seals]
+            # Append "?" for the next expected seal
+            if self._selected_jutsu_seals and matched < len(self._selected_jutsu_seals):
+                next_seal = self._selected_jutsu_seals[matched]
+                parts.append(f"{config.SEAL_DISPLAY.get(next_seal, next_seal)}?")
             chain_text = " -> ".join(parts)
             font_scale = 0.6
             thickness = 1
