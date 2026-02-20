@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
 from cvjutsu.classifier import SealClassifier
 from cvjutsu.data_collector import DataCollector
+from cvjutsu.features import feature_names
 
 
 def main() -> None:
@@ -51,6 +52,16 @@ def main() -> None:
     for i, label in enumerate(labels):
         row = " ".join(f"{cm[i, j]:>8}" for j in range(len(labels)))
         print(f"{label:>8} {row}")
+
+    # Feature importance
+    print("\nFeature Importance (top 20):")
+    rf.fit(X, y)
+    names = feature_names()
+    importances = rf.feature_importances_
+    indices = np.argsort(importances)[::-1][:20]
+    for rank, idx in enumerate(indices, 1):
+        name = names[idx] if idx < len(names) else f"feature_{idx}"
+        print(f"  {rank:>2}. {name:<35} {importances[idx]:.4f}")
 
 
 if __name__ == "__main__":
