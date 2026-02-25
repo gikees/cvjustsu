@@ -19,18 +19,14 @@ import config
 class SealCard(QFrame):
     """Single seal card in the sequence strip with reference image."""
 
-    def __init__(self, seal_id: str, img_size: int = 96, parent=None) -> None:
+    def __init__(self, seal_id: str, img_size: int = 120, parent=None) -> None:
         super().__init__(parent)
         self.seal_id = seal_id
         self.setObjectName("sealCard")
 
-        card_w = img_size + 24
-        card_h = img_size + 40
-        self.setFixedSize(card_w, card_h)
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
+        layout.setSpacing(2)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         display = config.SEAL_DISPLAY.get(seal_id, seal_id)
@@ -38,7 +34,6 @@ class SealCard(QFrame):
         # Seal reference image
         self._image_label = QLabel()
         self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._image_label.setFixedSize(img_size, img_size)
 
         img_path = config.seal_image_path(seal_id)
         if img_path.exists():
@@ -58,7 +53,7 @@ class SealCard(QFrame):
         # Seal name below
         self._name_label = QLabel(display)
         self._name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._name_label.setStyleSheet("font-size: 12px; color: #aaa;")
+        self._name_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #ddd;")
         layout.addWidget(self._name_label)
 
     def set_state(self, state: str) -> None:
@@ -81,16 +76,12 @@ class SealStrip(QFrame):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setObjectName("panel")
+        self.setObjectName("sealStrip")
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        self.setMinimumHeight(120)
+        self.setMinimumHeight(140)
 
         self._outer = QVBoxLayout(self)
         self._outer.setContentsMargins(8, 4, 8, 4)
-
-        self._title = QLabel("SEAL SEQUENCE")
-        self._title.setObjectName("sectionTitle")
-        self._outer.addWidget(self._title)
 
         self._strip_widget = QWidget()
         self._strip_layout = QHBoxLayout(self._strip_widget)
@@ -105,16 +96,16 @@ class SealStrip(QFrame):
 
     def _calc_img_size(self, num_seals: int) -> int:
         """Calculate image size based on number of seals and available space."""
-        available_h = self.height() - 60  # title + margins
-        max_from_height = max(available_h - 40, 80)  # leave room for name label
+        available_h = self.height() - 20  # margins
+        max_from_height = max(available_h - 30, 100)  # room for name label
 
         # Also limit by width: cards + arrows must fit
         available_w = self.width() - 30
         arrow_space = max(0, num_seals - 1) * 40
         card_w_budget = (available_w - arrow_space) / max(num_seals, 1)
-        max_from_width = max(int(card_w_budget) - 24, 80)
+        max_from_width = max(int(card_w_budget) - 16, 100)
 
-        return min(max_from_height, max_from_width, 250)
+        return min(max_from_height, max_from_width, 300)
 
     def set_sequence(self, seals: list[str]) -> None:
         """Display a new seal sequence with dynamically sized cards."""
@@ -130,8 +121,8 @@ class SealStrip(QFrame):
 
         for i, seal_id in enumerate(seals):
             if i > 0:
-                arrow = QLabel("→")
-                arrow.setStyleSheet("font-size: 24px; color: #666; padding: 0 6px;")
+                arrow = QLabel("\u2192")
+                arrow.setStyleSheet("font-size: 24px; color: #666; padding: 0 4px;")
                 arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._strip_layout.addWidget(arrow)
 

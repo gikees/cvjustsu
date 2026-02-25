@@ -76,7 +76,7 @@ class CameraWidget(QLabel):
         super().__init__(parent)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(config.CAMERA_WIDTH, config.CAMERA_HEIGHT)
-        self.setStyleSheet("background-color: #1a1a2e;")
+        self.setStyleSheet("background-color: #2b2b2b;")
         self.setText("Starting camera...")
 
     @pyqtSlot(np.ndarray)

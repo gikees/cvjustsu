@@ -120,24 +120,29 @@ QFrame#panel {{
     padding: 8px;
 }}
 
+QFrame#sealStrip {{
+    background-color: {PANEL_BG};
+    border: none;
+    border-top: 1px solid {BORDER_COLOR};
+    padding: 4px;
+}}
+
 QFrame#sealCard {{
-    background-color: {DARK_BG};
-    border: 2px solid {BORDER_COLOR};
-    border-radius: 8px;
+    background-color: transparent;
+    border: none;
     padding: 6px;
 }}
 
 QFrame#sealCardActive {{
-    background-color: {DARK_BG};
+    background-color: rgba(74, 158, 255, 0.15);
     border: 2px solid {ACCENT};
     border-radius: 8px;
     padding: 6px;
 }}
 
 QFrame#sealCardDone {{
-    background-color: {HIGHLIGHT_BG};
-    border: 2px solid {ACCENT};
-    border-radius: 8px;
+    background-color: rgba(74, 158, 255, 0.08);
+    border: none;
     padding: 6px;
 }}
 """
